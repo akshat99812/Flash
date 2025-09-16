@@ -1,0 +1,1 @@
+{"root":["./src/constants.ts","./src/index.ts","./src/prompts.ts","./src/stripindents.ts","./src/config/passport.ts","./src/controllers/auth.controller.ts","./src/defaults/node.ts","./src/defaults/react.ts","./src/routes/auth.routes.ts","./src/routes/genai.routes.ts","./src/utils/prisma.ts"],"version":"5.9.2"}
