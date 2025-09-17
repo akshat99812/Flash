@@ -1,0 +1,62 @@
+/* Remove default styles that conflict with Tailwind */
+#root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+/* Custom scrollbar for Monaco editor and components */
+.monaco-editor .scroll-decoration,
+.monaco-editor .scrollbar {
+  background: transparent !important;
+}
+
+/* Custom font loading */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+/* Ensure full height for layout */
+html, body {
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom focus styles */
+.focus\:ring-primary:focus {
+  --tw-ring-color: hsl(var(--primary));
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Monaco Editor custom styles */
+.monaco-editor {
+  --monaco-bg: hsl(var(--background));
+}
+
+/* Resizable panel handle styles */
+[data-panel-resize-handle-enabled] {
+  transition: background-color 0.2s ease;
+}
+
+[data-panel-resize-handle-enabled]:hover {
+  background-color: hsl(var(--primary) / 0.1);
+}
