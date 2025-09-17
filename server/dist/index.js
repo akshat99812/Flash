@@ -6,11 +6,13 @@ import prisma from './utils/prisma.js';
 import authRoutes from './routes/auth.routes.js';
 import genaiRoutes from './routes/genai.routes.js';
 import './config/passport.js'; // Import passport config
+import cors from 'cors';
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
+app.use(cors());
 // Session and Passport middleware for authentication
 app.use(session({
     secret: process.env.SESSION_SECRET,
