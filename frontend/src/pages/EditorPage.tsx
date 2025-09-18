@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import MonacoEditor from '@/components/MonacoEditor';
 import FileExplorer from '@/components/FileExplorer';
 import StepsPanel from '@/components/StepsPanel';
@@ -9,17 +9,17 @@ import { backend_url } from '@/config';
 import { Step, FileItem, StepType } from '../types/index';
 import { parseXml } from '../steps';
 import PreviewPanel from '@/components/PreviewPanel';
+import { useWebContainer } from '@/hooks/web-container';
+import { response } from '@/debug';
+import ChatPanel from '@/components/ChatAssistant';
 
+// Helper functions (unchanged)
 const findItemByPath = (items: FileItem[], path: string): FileItem | null => {
   for (const item of items) {
-    if (item.path === path) {
-      return item;
-    }
+    if (item.path === path) return item;
     if (item.type === 'folder' && item.children) {
       const found = findItemByPath(item.children, path);
-      if (found) {
-        return found;
-      }
+      if (found) return found;
     }
   }
   return null;
@@ -27,9 +27,7 @@ const findItemByPath = (items: FileItem[], path: string): FileItem | null => {
 
 const updateFileContentByPath = (items: FileItem[], path: string, content: string): FileItem[] => {
   return items.map(item => {
-    if (item.path === path && item.type === 'file') {
-      return { ...item, content };
-    }
+    if (item.path === path && item.type === 'file') return { ...item, content };
     if (item.type === 'folder' && item.children) {
       return { ...item, children: updateFileContentByPath(item.children, path, content) };
     }
@@ -47,130 +45,186 @@ const deleteItemByPath = (items: FileItem[], path: string): FileItem[] => {
 };
 
 export default function EditorPage() {
-  const { projectId } = useParams();
   const location = useLocation();
   const prompt = location.state?.prompt;
+  const  webcontainer = useWebContainer();
 
   const [isLoading, setIsLoading] = useState(false);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [steps, setSteps] = useState<Step[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [viewMode, setViewMode] = useState<'editor' | 'preview'>('editor');
+  const [llmMessages, setLlmMessages] = useState<{role: "user" | "assistant", content: string;}[]>([]);
 
-  const canPreview = selectedFile?.path.endsWith('.html');
+  const initRan = useRef(false);
 
-  useEffect(() => {
-    setViewMode('editor');
-  }, [selectedFile]);
+  const handleSendMessage = async (userPrompt: string) => {
+    if (!userPrompt.trim()) return;
 
-  const handleCreateProject = async (promptText: string) => {
-    if (!promptText) return;
+    const newMessage = { 
+       role: "user" as "user",
+       content: userPrompt 
+      };
+
     setIsLoading(true);
-    try {
-      const response = await axios.post(`${backend_url}/genai/template`, { prompt: promptText });
-      const { prompts, uiPrompts } = response.data;
-      
-      setSteps(parseXml(uiPrompts[0]).map((x: Step) => ({
-        ...x,
-        status: "pending"
-      })));
 
-      await axios.post(`${backend_url}/genai/chat`, {
-        messages: [...prompts, promptText].map(content => ({
-          role: "user",
-          content
-        }))
+    try {
+      const stepsResponse = await axios.post(`${backend_url}/genai/chat`, {
+        messages: [...llmMessages, newMessage],
       });
 
+      const responseContent = stepsResponse.data.response;
+
+      setLlmMessages(prev => [...prev, { role: "assistant", content: responseContent }]);
+
+      const newSteps = parseXml(responseContent).map((x: Step) => ({
+        ...x,
+        status: "pending" as const,
+      }));
+
+      setSteps(s => [...s, ...newSteps]);
     } catch (error) {
-      console.error("Failed to create project:", error);
+      console.error("Failed to get chat response:", error);
+      // Optionally add an error message to the chat
+      setLlmMessages(prev => [...prev, { role: "assistant", content: "Sorry, I encountered an error." }]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    setViewMode('editor');
+  }, [selectedFile]);
   
   useEffect(() => {
-    if (prompt) {
-      handleCreateProject(prompt);
+    const pendingSteps = steps.filter(({ status }) => status === "pending");
+    if (pendingSteps.length === 0) return;
+
+    setFiles(currentFiles => {
+      const newFiles = JSON.parse(JSON.stringify(currentFiles));
+      pendingSteps.forEach(step => {
+        if (step?.type === StepType.CreateFile && step.path) {
+          const pathSegments = step.path.replace(/^\//, '').split('/');
+          let currentLevel = newFiles;
+          let currentPath = '';
+          pathSegments.forEach((segment, index) => {
+            const isLastSegment = index === pathSegments.length - 1;
+            currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+            let item = currentLevel.find(i => i.name === segment);
+            if (isLastSegment) {
+              if (item) item.content = step.code;
+              else currentLevel.push({ name: segment, type: 'file', path: currentPath, content: step.code });
+            } else {
+              if (!item) {
+                item = { name: segment, type: 'folder', path: currentPath, children: [] };
+                currentLevel.push(item);
+              }
+              currentLevel = item.children!;
+            }
+          });
+        }
+      });
+      return newFiles;
+    });
+
+    setSteps(currentSteps =>
+      currentSteps.map(s => (s.status === "pending" ? { ...s, status: "completed" } : s))
+    );
+  }, [steps]);
+
+  const init = useCallback(async () => {
+    if (!prompt) return;
+    setIsLoading(true);
+
+    try {
+      const templateResponse = await axios.post(`${backend_url}/genai/template`, { prompt: prompt.trim() });
+      const { prompts, uiPrompts } = templateResponse.data;
+      
+      const initialSteps = parseXml(uiPrompts[0]).map((x: Step) => ({ ...x, status: "pending" as const }));
+      setSteps(initialSteps);
+
+       const stepsResponse = await axios.post(`${backend_url}/genai/chat`, { messages: [...prompts, prompt].map(content => ({ role: "user", content })) });
+
+       const responseText = stepsResponse.data.response;
+      //const responseText = response.candidates?.[0]?.content?.parts?.[0]?.text; // Using mock response from debug.ts
+
+      console.log("Response:", responseText);
+
+      setSteps(s => [...s, ...parseXml(responseText).map(x => ({ ...x, status: "pending" as const }))]);
+      
+      setLlmMessages([
+        ...[...prompts, prompt].map(content => ({ role: "user" as const, content })),
+        { role: "assistant" as const, content: responseText }
+      ]);
+    } catch (error) {
+      console.error("Failed to initialize project:", error);
+    } finally {
+      setIsLoading(false);
     }
   }, [prompt]);
 
   useEffect(() => {
-    const pendingSteps = steps.filter(
-      (step) => step.status === "pending" && step.type === StepType.CreateFile
-    );
+    if (initRan.current) return;
+    initRan.current = true;
+    init();
+  }, [init]);
 
-    if (pendingSteps.length === 0) {
-      return;
-    }
-
-    setFiles((currentFiles) => {
-      let filesCopy = JSON.parse(JSON.stringify(currentFiles));
-
-      pendingSteps.forEach((step) => {
-        if (!step.path) return;
-        const pathSegments = step.path.split('/').filter(Boolean);
-        let currentLevel = filesCopy;
-        let currentPath = "";
-
-        pathSegments.forEach((segment, index) => {
-          currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-          const isLastSegment = index === pathSegments.length - 1;
-          let node = currentLevel.find((item) => item.name === segment);
-
-          if (isLastSegment) {
-            if (node && node.type === 'file') {
-              node.content = step.code;
-            } else if (!node) {
-              currentLevel.push({
-                name: segment,
-                type: 'file',
-                path: currentPath,
-                content: step.code,
-              });
-            }
+   useEffect(() => {
+    const createMountStructure = (files: FileItem[]): Record<string, any> => {
+      const mountStructure: Record<string, any> = {};
+  
+      const processFile = (file: FileItem, isRootFolder: boolean) => {  
+        if (file.type === 'folder') {
+          // For folders, create a directory entry
+          mountStructure[file.name] = {
+            directory: file.children ? 
+              Object.fromEntries(
+                file.children.map(child => [child.name, processFile(child, false)])
+              ) 
+              : {}
+          };
+        } else if (file.type === 'file') {
+          if (isRootFolder) {
+            mountStructure[file.name] = {
+              file: {
+                contents: file.content || ''
+              }
+            };
           } else {
-            if (node && node.type === 'folder') {
-              currentLevel = node.children!;
-            } else if (!node) {
-              const newFolder: FileItem = {
-                name: segment,
-                type: 'folder',
-                path: currentPath,
-                children: [],
-              };
-              currentLevel.push(newFolder);
-              currentLevel = newFolder.children!;
-            }
+            // For files, create a file entry with contents
+            return {
+              file: {
+                contents: file.content || ''
+              }
+            };
           }
-        });
-      });
-      return filesCopy;
-    });
-    
-    setSteps((prevSteps) =>
-        prevSteps.map((s) =>
-        pendingSteps.some((ps) => ps.id === s.id)
-            ? { ...s, status: "completed" }
-            : s
-        )
-    );
-
-  }, [steps]);
-
+        }
+  
+        return mountStructure[file.name];
+      };
+  
+      // Process each top-level file/folder
+      files.forEach(file => processFile(file, true));
+  
+      return mountStructure;
+    };
+  
+    const mountStructure = createMountStructure(files);
+  
+    // Mount the structure if WebContainer is available
+    console.log(mountStructure);
+    webcontainer?.mount(mountStructure);
+  }, [files, webcontainer]);
 
   const handleFileChange = (content: string) => {
     if (!selectedFile) return;
-
     setFiles(prevFiles => updateFileContentByPath(prevFiles, selectedFile.path, content));
     setSelectedFile(prev => (prev ? { ...prev, content } : null));
   };
 
   const handleFileSelect = (path: string) => {
     const file = findItemByPath(files, path);
-    if (file && file.type === 'file') {
-      setSelectedFile(file);
-    }
+    if (file && file.type === 'file') setSelectedFile(file);
   };
 
   const handleNewFile = (filename: string) => {
@@ -179,21 +233,14 @@ export default function EditorPage() {
         alert("A file with this name already exists at the root.");
         return;
     }
-    const newFile: FileItem = {
-      name: newPath,
-      type: 'file',
-      content: '',
-      path: newPath,
-    };
+    const newFile: FileItem = { name: newPath, type: 'file', content: '', path: newPath };
     setFiles(prev => [...prev, newFile]);
     setSelectedFile(newFile);
   };
 
   const handleDeleteFile = (path: string) => {
     setFiles(prev => deleteItemByPath(prev, path));
-    if (selectedFile?.path === path) {
-      setSelectedFile(null);
-    }
+    if (selectedFile?.path === path) setSelectedFile(null);
   };
   
   if (isLoading) {
@@ -208,56 +255,66 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="h-screen pt-16"> 
-      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
-          <FileExplorer
-            files={files}
-            activeFile={selectedFile?.path ?? ''}
-            onFileSelect={handleFileSelect}
-            onNewFile={handleNewFile}
-            onDeleteFile={handleDeleteFile}
+   <div className="h-screen pt-16">
+  <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+    <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
+      <FileExplorer
+        files={files}
+        activeFile={selectedFile?.path ?? ''}
+        onFileSelect={handleFileSelect}
+        onNewFile={handleNewFile}
+        onDeleteFile={handleDeleteFile}
+      />
+    </ResizablePanel>
+    <ResizableHandle withHandle />
+    <ResizablePanel defaultSize={55} minSize={30} className="flex flex-col">
+      <div className="flex-none flex items-center justify-end gap-2 p-2 border-b">
+        <button onClick={() => setViewMode('editor')} disabled={viewMode === 'editor'} className="px-3 py-1 text-sm rounded-md disabled:bg-muted disabled:opacity-70 hover:bg-muted">Code</button>
+        <button onClick={() => setViewMode('preview')} disabled={viewMode === 'preview'} className="px-3 py-1 text-sm rounded-md disabled:bg-muted disabled:opacity-70 hover:bg-muted">Preview</button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          🚀 Booting WebContainer...
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto h-full">
+        {/* --- Editor View --- */}
+        {/* This div is only visible when viewMode is 'editor' */}
+        <div className="h-full" hidden={viewMode !== 'editor'}>
+          <MonacoEditor
+            filename={selectedFile?.path ?? ''}
+            value={selectedFile?.content || ''}
+            onChange={(value) => handleFileChange(value || '')}
           />
-        </ResizablePanel>
-        
-        <ResizableHandle withHandle />
-        
-        <ResizablePanel defaultSize={55} minSize={30} className="flex flex-col">
-          <div className="flex-none flex items-center justify-end gap-2 p-2 border-b">
-              <button
-                  onClick={() => setViewMode('editor')}
-                  disabled={viewMode === 'editor'}
-                  className="px-3 py-1 text-sm rounded-md disabled:bg-muted disabled:opacity-70 hover:bg-muted"
-              >
-                  Code
-              </button>
-              <button
-                  onClick={() => setViewMode('preview')}
-                  disabled={!canPreview || viewMode === 'preview'}
-                  className="px-3 py-1 text-sm rounded-md disabled:bg-muted disabled:opacity-50 hover:bg-muted"
-              >
-                  Preview
-              </button>
-          </div>
-          <div className="flex-1 overflow-auto">
-              {viewMode === 'editor' || !canPreview ? (
-                  <MonacoEditor
-                      filename={selectedFile?.path ?? ''}
-                      value={selectedFile?.content || ''}
-                      onChange={(value) => handleFileChange(value || '')}
-                  />
-              ) : (
-                  <PreviewPanel  />
-              )}
-          </div>
-        </ResizablePanel>
-        
-        <ResizableHandle withHandle />
-        
-        <ResizablePanel defaultSize={25} minSize={15} maxSize={35}>
+        </div>
+        <div className="h-full" hidden={viewMode !== 'preview'}>
+          {webcontainer && (
+            <PreviewPanel webContainer={webcontainer} />
+          )}
+        </div>
+      </div>
+      )}
+    </ResizablePanel>
+    <ResizableHandle withHandle />
+
+  
+    <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
+      <ResizablePanelGroup direction="vertical">
+        <ResizablePanel defaultSize={50} minSize={25}>
           <StepsPanel steps={steps} />
         </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel defaultSize={50} minSize={25}>
+          <ChatPanel
+            messages={llmMessages}
+            isLoading={isLoading}
+            onSubmit={handleSendMessage}
+          />
+        </ResizablePanel>
       </ResizablePanelGroup>
-    </div>
+    </ResizablePanel>
+  </ResizablePanelGroup>
+</div>
   );
 }

@@ -50,27 +50,67 @@ router.post("/template", async (req, res) => {
 router.post("/chat", async (req, res) => {
   const messages = req.body.messages;
 
-  // This is the correct way to transform all messages
-  const formattedMessages = messages.map((message: { role: any; content: any; }) => ({
+  // It's good practice to validate input
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "Invalid or empty 'messages' array." });
+  }
+
+  const formattedMessages = messages.map((message) => ({
     role: message.role,
-    parts: [{ text: message.content }]
+    parts: [{ text: message.content }],
   }));
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: formattedMessages, // Pass the entire, correctly formatted array
-      config: {
-        temperature: 0.2,
-        systemInstruction: getSystemPrompt(),
-      }
-    });
 
-    res.json({
-      response: response.text ? response.text.toLowerCase().trim() : ""
-    });
+  // --- Retry Logic Variables ---
+  let attempts = 0;
+  const maxAttempts = 5;
+  let delay = 1000; // Start with a 1-second delay
+
+  // The outer try/catch will handle final failures after all retries.
+  try {
+    while (attempts < maxAttempts) {
+      try {
+        // --- API Call ---
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: formattedMessages,
+          config: {
+            temperature: 0.2,
+            systemInstruction: getSystemPrompt(),
+          },
+        });
+
+        res.json({
+          response: response.candidates?.[0]?.content?.parts?.[0]?.text ?? "",
+        });
+        return; 
+
+      } catch (error) {
+        // Check if the error is the specific "overloaded" error
+        if (typeof error === "object" && error !== null && "status" in error && (error as any).status === 503) {
+          attempts++;
+          console.log(`Attempt ${attempts} failed with 503. Retrying in ${delay / 1000}s...`);
+          
+          // If we've reached the max number of attempts, throw an error
+          if (attempts >= maxAttempts) {
+            throw new Error("The model is still overloaded after several retries.");
+          }
+          
+          // Wait for the specified delay
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          // Double the delay for the next attempt (exponential backoff)
+          delay *= 2;
+
+        } else {
+          // For any other kind of error, throw it immediately to be caught by the outer catch block.
+          throw error;
+        }
+      }
+    }
   } catch (error) {
-    console.error("API Error:", error);
+    // This will catch errors from the final failed attempt or any non-503 errors.
+    console.error("API Error after retries:", error);
     res.status(500).json({ error: "Failed to generate content from AI." });
   }
 });

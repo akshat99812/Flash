@@ -12,14 +12,11 @@ import { cn } from '@/lib/utils';
 
 interface StepsPanelProps {
   steps: Step[];
-  // onStepComplete is removed as steps are no longer user-clickable to complete
-  // If you need to complete steps via other means, that logic would reside elsewhere.
 }
 
 export default function StepsPanel({ steps }: StepsPanelProps) {
   const completedSteps = steps.filter(step => step.status === 'completed').length;
   const totalSteps = steps.length;
-  // Handle division by zero if totalSteps is 0
   const progress = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
   return (
@@ -71,19 +68,15 @@ export default function StepsPanel({ steps }: StepsPanelProps) {
             </CardContent>
           </Card>
         </div>
-
-        {/* Steps List */}
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-3">
             {steps.map((step, index) => (
               <Card 
-                key={step.id} 
+                key={`${step.id}-${index}`} 
                 className={cn(
-                  // Removed cursor-pointer and hover:bg-accent/50 as it's not clickable
                   "transition-colors", // Keep some transition for consistency with status change
                   step.status === "completed" && "bg-primary/5 border-primary/20"
                 )}
-                // Removed onClick handler
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
@@ -101,9 +94,6 @@ export default function StepsPanel({ steps }: StepsPanelProps) {
                       )}>
                         {index + 1}. {step.title}
                       </h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {step.description}
-                      </p>
                     </div>
                   </div>
                 </CardContent>
