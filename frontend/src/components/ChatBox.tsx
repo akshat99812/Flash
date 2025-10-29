@@ -53,11 +53,14 @@ const suggestions = [
   }
 ];
 
-export default function ChatBox({ onCreateProject }: ChatBoxProps) {
+/* eslint-disable @typescript-eslint/no-unused-vars */
+export default function ChatBox({  
+  onCreateProject 
+}: ChatBoxProps) {
 
   const navigate = useNavigate();
   
-  const [messages, setMessages] = useState<Message[]>([
+  const [_messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       type: 'assistant',
@@ -66,7 +69,7 @@ export default function ChatBox({ onCreateProject }: ChatBoxProps) {
     }
   ]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, _setIsLoading] = useState(false);
   // setIsLoading(false);
   // console.log(messages);
 
