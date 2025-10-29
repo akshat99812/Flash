@@ -18,26 +18,21 @@ app.use(express.json());
 app.use(cors());
 
 // Session and Passport middleware for authentication
-app.use(session({
-    secret: process.env.SESSION_SECRET!,
-    resave: false,
-    saveUninitialized: false
-}));
-app.use(passport.initialize());
-app.use(passport.session());
+//app.use(passport.initialize());
+//app.use(passport.session());
 
 // AI and Authentication Routes
 app.use("/genai", genaiRoutes);
-app.use('/auth', authRoutes);
+//app.use('/auth', authRoutes);
 
 // Profile route for authenticated users
-app.get('/profile', (req: Request, res: Response) => {
-    if (req.isAuthenticated()) {
-        res.json({ message: 'Authenticated', user: req.user });
-    } else {
-        res.status(401).json({ message: 'Not authenticated' });
-    }
-});
+// app.get('/profile', (req: Request, res: Response) => {
+//     if (req.isAuthenticated()) {
+//         res.json({ message: 'Authenticated', user: req.user });
+//     } else {
+//         res.status(401).json({ message: 'Not authenticated' });
+//     }
+// });
 
 // Start the server
 const server = app.listen(PORT, () => {
