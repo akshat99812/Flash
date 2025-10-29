@@ -56,10 +56,10 @@ const suggestions = [
 
 
 
-export default function ChatBox({ onCreateProject }: ChatBoxProps) {
+export default function ChatBox({ onCreateProject :_}: ChatBoxProps) {
 
   const navigate = useNavigate();
-
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -70,6 +70,8 @@ export default function ChatBox({ onCreateProject }: ChatBoxProps) {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  setIsLoading(false);
+  console.log(messages);
 
 const handleSend = () => {
 

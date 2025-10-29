@@ -2,11 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send } from 'lucide-react';
 
 // A simple loader component
-const Loader = () => (
-  <div className="flex items-center justify-center p-2">
-    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400"></div>
-  </div>
-);
+// const Loader = () => (
+//   <div className="flex items-center justify-center p-2">
+//     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400"></div>
+//   </div>
+// );
 
 interface ChatPanelProps {
   messages: { role: 'user' | 'assistant'; content: string }[];

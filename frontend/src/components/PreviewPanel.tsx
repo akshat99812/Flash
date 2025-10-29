@@ -1,5 +1,5 @@
 import { WebContainer } from '@webcontainer/api';
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface PreviewFrameProps {
   webContainer: WebContainer;

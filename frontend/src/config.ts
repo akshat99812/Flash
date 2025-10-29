@@ -1,1 +1,1 @@
-export const backend_url =  'http://localhost:3000';
+export const backend_url =  'https://flash-2-msvl.onrender.com';

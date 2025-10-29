@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ChatBox from '@/components/ChatBox';
-import { Zap, Code2, Palette, Rocket, Globe, Sparkles, ArrowRight, CheckCircle } from 'lucide-react';
+import {  Code2, Palette, Rocket, Globe, Sparkles, ArrowRight } from 'lucide-react';
 
 const features = [
   {

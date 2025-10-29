@@ -10,7 +10,6 @@ import { Step, FileItem, StepType } from '../types/index';
 import { parseXml } from '../steps';
 import PreviewPanel from '@/components/PreviewPanel';
 import { useWebContainer } from '@/hooks/web-container';
-import { response } from '@/debug';
 import ChatPanel from '@/components/ChatAssistant';
 
 // Helper functions (unchanged)
@@ -110,7 +109,7 @@ export default function EditorPage() {
           pathSegments.forEach((segment, index) => {
             const isLastSegment = index === pathSegments.length - 1;
             currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-            let item = currentLevel.find(i => i.name === segment);
+            let item = currentLevel.find((i:any) => i.name === segment);
             if (isLastSegment) {
               if (item) item.content = step.code;
               else currentLevel.push({ name: segment, type: 'file', path: currentPath, content: step.code });

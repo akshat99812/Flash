@@ -12,6 +12,8 @@ const navItems = [
   // 'Editor' is now the primary CTA button, so we remove it from here
 ];
 
+
+
 export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
@@ -120,9 +122,17 @@ const MobileNav = () => {
   const location = useLocation();
 
   const mobileMenuVariants = {
-    hidden: { x: '100%', opacity: 0 },
-    visible: { x: 0, opacity: 1, transition: { type: 'spring', stiffness: 300, damping: 30 } },
-    exit: { x: '100%', opacity: 0, transition: { duration: 0.2 } },
+    hidden: { x: '-100%', opacity: 0 },
+    visible: { 
+      x: 0, 
+      opacity: 1, 
+      transition: { type: 'spring' as const, stiffness: 100, damping: 20 }
+    },
+    exit: { 
+      x: '-100%', 
+      opacity: 0, 
+      transition: { duration: 0.3 }
+    },
   };
 
   const listVariants = {
