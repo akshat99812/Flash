@@ -4,7 +4,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 
-
 import { 
   Send, 
   Sparkles, 
@@ -54,9 +53,7 @@ const suggestions = [
   }
 ];
 
-
-
-export default function ChatBox({ onCreateProject :_}: ChatBoxProps) {
+export default function ChatBox({ onCreateProject }: ChatBoxProps) {
 
   const navigate = useNavigate();
   
@@ -70,8 +67,8 @@ export default function ChatBox({ onCreateProject :_}: ChatBoxProps) {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  setIsLoading(false);
-  console.log(messages);
+  // setIsLoading(false);
+  // console.log(messages);
 
 const handleSend = () => {
 
