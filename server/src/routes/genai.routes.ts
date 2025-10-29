@@ -12,7 +12,7 @@ const ai = new GoogleGenAI({});
 router.post("/template", async (req, res) => {
   const prompt = req.body.prompt;
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: "gemini-2.5-pro",
     contents: prompt,
     config: {
       temperature: 0.2,
